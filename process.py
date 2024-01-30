@@ -6,6 +6,8 @@ import openpyxl
 
 card_data_map = {}  # card:{ascension:{viewCnt,pickCnt,winCnt,pickFloorSum}}
 combat_data_map = {}  # ascension:{victory:cnt, lose:cnt, loseLayerSum:cnt, perFloor:{}}
+victory_data_map = {}  # ascension:{floor:{victory:cnt, lose:cnt}}
+victory_data_total = 0
 
 card_name_map = {}
 
@@ -26,11 +28,16 @@ def processJson():
             content = json.load(f)
             floor_reached = content['event']['floor_reached']
             mods = content['event']['mods']
+            if 'Loadout Mod' in mods:
+                # print(file_name)
+                continue
             if floor_reached < 3:
                 continue
             card_choices = content['event']['card_choices']
             ascension_level = int(content['event']['ascension_level'])
             victory = content['event']['victory']
+
+            add_victory_data(ascension_level, floor_reached, victory)
 
             set_combat_data_default(ascension_level)
             if victory:
@@ -76,6 +83,43 @@ def set_card_data_default(card, ascension):
 def set_combat_data_default(ascension):
     combat_data_map.setdefault(ascension, {'victory': 0, 'lose': 0, 'loseLayerSum': 0,
                                            'perFloor': dict((i, 0) for i in range(1, 56))})
+
+
+def add_victory_data(ascension, reach_floor, victory):
+    global victory_data_total
+    victory_data_map.setdefault(ascension, dict((i, {'victory': 0, 'lose': 0}) for i in range(1, 56)))
+    if victory:
+        victory_data_total += 1
+        for i in range(1, 56):
+            victory_data_map[ascension][i]['victory'] += 1
+    else:
+        for i in range(1, reach_floor + 1):
+            victory_data_map[ascension][i]['lose'] += 1
+    if ascension != -1:
+        add_victory_data(-1, reach_floor, victory)
+
+
+def export_victory_data():
+    ascensions = []
+    perFloor = dict((i, []) for i in range(1, 56))
+    for ascension in range(-1, 21):
+        if ascension not in victory_data_map:
+            continue
+        ascensions.append(ascension)
+        for floor, data in victory_data_map[ascension].items():
+            victory = data['victory']
+            lose = data['lose']
+            if victory + lose > 0:
+                perFloor[floor].append(victory / (victory + lose))
+            else:
+                perFloor[floor].append(0)
+    export_data = {'进阶': ascensions}
+    for floor, l in perFloor.items():
+        export_data[floor] = l
+    df = DataFrame(export_data)
+    # print(df)
+    df.to_excel('victory_data.xlsx', index=False)
+    print('export to victory_data.xlsx success')
 
 
 def export_combat_data_total():
@@ -145,3 +189,4 @@ if __name__ == '__main__':
     processJson()
     export_card_data_total()
     export_combat_data_total()
+    export_victory_data()
