@@ -1,3 +1,4 @@
+import datetime
 import os.path
 from collections import defaultdict
 
@@ -20,11 +21,14 @@ class CardData:
         self.singleWinCnt = 0
         self.firstPickFloor = 0
         self.firstSmithFloor = 0
+        self.upgradeCnt = 0
+        self.upgradeFloorSum = 0
 
     @staticmethod
-    def process(content):
+    def process(file_name, content):
         card_cache_set = set()
         card_choices = content['event']['card_choices']
+        campfire_choices = content['event']['campfire_choices']
         ascension_level = int(content['event']['ascension_level'])
         victory = content['event']['victory']
 
@@ -49,6 +53,16 @@ class CardData:
                     card_data.singlePickCnt += 1
                     if victory:
                         card_data.singleWinCnt += 1
+        for choice in campfire_choices:
+            key = choice['key']
+            if key == 'SMITH':
+                card = choice['data']
+                card = get_raw_card_name(card)
+                floor = choice['floor']
+                if card:
+                    card_data = CardData.card_data_map[card][ascension_level]
+                    card_data.upgradeCnt += 1
+                    card_data.upgradeFloorSum += floor
 
 
 class CombatData:
@@ -60,6 +74,7 @@ class CombatData:
         self.lose = 0
         self.loseLayerSum = 0
         self.perFloor = defaultdict(lambda: 0)
+        self.enterLast = 0
 
     @staticmethod
     def process(content):
@@ -76,6 +91,8 @@ class CombatData:
             combat_data.lose += 1
             combat_data.loseLayerSum += floor_reached
             combat_data.perFloor[floor_reached] += 1
+        if floor_reached >= 52:
+            combat_data.enterLast += 1
 
 
 victory_data_map = {}  # ascension:{floor:{victory:cnt, lose:cnt}}
@@ -108,12 +125,7 @@ def processJson():
             CombatData.process(content)
             if floor_reached < 3:
                 continue
-            # if victory:
-            #     if 'killed_by' in content['event']:
-            #         print('killed_by' + content['event']['killed_by'])
-            #     print(str(floor_reached) + " " + file_name)
-            #     print(ascension_level)
-            CardData.process(content)
+            CardData.process(file_name, content)
 
 
 def get_raw_card_name(name):
@@ -146,11 +158,14 @@ class Export:
         Export.export_combat_data_total()
         Export.export_victory_data()
 
+        cur_date = datetime.datetime.now().strftime("%Y_%m_%d")
+
         os.makedirs('export', exist_ok=True)
-        with pandas.ExcelWriter(os.path.join('export', 'export.xlsx')) as writer:
+        with pandas.ExcelWriter(os.path.join('export', 'export_'+cur_date+'.xlsx')) as writer:
             for sheet_name, data in Export.export_data.items():
                 df = DataFrame(data)
                 df.to_excel(writer, sheet_name=sheet_name, index=False)
+                print(f'export {sheet_name} success')
 
     @staticmethod
     def export_victory_data():
@@ -171,7 +186,6 @@ class Export:
         for floor, l in perFloor.items():
             export_data[floor] = l
         Export.export_data["各层胜率"] = export_data
-        print('export to victory_data.xlsx success')
 
     @staticmethod
     def export_combat_data_total():
@@ -180,6 +194,7 @@ class Export:
         lose = []
         loseLayerSum = []
         perFloor = dict((i, []) for i in range(1, 58))
+        enterLast = []
         for ascension in range(0, 21):
             if ascension not in CombatData.combat_data_map:
                 continue
@@ -187,6 +202,7 @@ class Export:
             ascensions.append(ascension)
             victory.append(data.victory)
             lose.append(data.lose)
+            enterLast.append(data.enterLast)
             for floor, l in perFloor.items():
                 l.append(data.perFloor[floor])
             if data.lose > 0:
@@ -194,7 +210,9 @@ class Export:
             else:
                 loseLayerSum.append(0)
         export_data = {'进阶': ascensions, '胜利次数': victory, '失败次数': lose, '失败平均楼层': loseLayerSum,
-                       '胜率': [v/(v+l) if v+l > 0 else 0 for v, l in zip(victory, lose)]
+                       '胜率': [v/(v+l) if v+l > 0 else 0 for v, l in zip(victory, lose)],
+                       '进入终幕次数': enterLast,
+                       '进入终幕比率': [e/(v+l) if v+l > 0 else 0 for e, (v, l) in zip(enterLast, zip(victory, lose))]
                        }
         for floor, l in perFloor.items():
             export_data[floor] = l
@@ -209,8 +227,11 @@ class Export:
         pickFloorSum = []
         singlePickCnt = []
         singleWinCnt = []
+        upgradeCnt = []
+        upgradeFloorSum = []
         for (card, card_data) in CardData.card_data_map.items():
             if card not in card_name_map:
+                print(f'ignore card {card}')
                 continue
             viewCntNum = sum((d.viewCnt for d in card_data.values()))
             pickCntNum = sum((d.pickCnt for d in card_data.values()))
@@ -218,6 +239,8 @@ class Export:
             singlePickCntNum = sum((d.singlePickCnt for d in card_data.values()))
             singleWinCntNum = sum((d.singleWinCnt for d in card_data.values()))
             pickFloorSumNum = sum((d.pickFloorSum for d in card_data.values()))
+            upgradeCntNum = sum((d.upgradeCnt for d in card_data.values()))
+            upgradeFloorSumNum = sum((d.upgradeFloorSum for d in card_data.values()))
 
             card_names.append(card_name_map[card])
             viewCnt.append(viewCntNum)
@@ -226,12 +249,19 @@ class Export:
             singlePickCnt.append(singlePickCntNum)
             singleWinCnt.append(singleWinCntNum)
             pickFloorSum.append(pickFloorSumNum)
+            upgradeCnt.append(upgradeCntNum)
+            upgradeFloorSum.append(upgradeFloorSumNum)
             # print(card_total)
+
+        upgradeCntSum = sum(upgradeCnt)
         export_data = {'卡牌名称': card_names, '掉落次数': viewCnt, '获取次数': pickCnt, '获取并胜利次数': winCnt,
+                       '选取率': [pick/view if view > 0 else 0 for view, pick in zip(viewCnt, pickCnt)],
                        '去重获取次数': singlePickCnt, '去重获取并胜利次数': singleWinCnt,
                        '平均获取楼层': [round(floor/pick, 1) if pick > 0 else 0 for pick, floor in zip(pickCnt, pickFloorSum)],
                        '去重胜率': [win/pick if pick > 0 else 0 for pick, win in zip(singlePickCnt, singleWinCnt)],
-                       '选取率': [pick/view if view > 0 else 0 for view, pick in zip(viewCnt, pickCnt)]
+                       '升级次数': upgradeCnt,
+                       '平均升级楼层': [round(floor/cnt, 1) if cnt > 0 else 0 for cnt, floor in zip(upgradeCnt, upgradeFloorSum)],
+                       '升级/抓取': [cnt / pick if pick > 0 else 0 for cnt, pick in zip(upgradeCnt, pickCnt)]
                        }
         Export.export_data["卡牌数据"] = export_data
 
