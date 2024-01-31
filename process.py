@@ -33,6 +33,7 @@ def processJson():
                 continue
             if floor_reached < 3:
                 continue
+            card_cache_set = set()
             card_choices = content['event']['card_choices']
             ascension_level = int(content['event']['ascension_level'])
             victory = content['event']['victory']
@@ -57,12 +58,18 @@ def processJson():
                 card = choice['picked']
                 card = get_raw_card_name(card)
                 if card:
-                    set_card_data_default( card, ascension_level )
+                    set_card_data_default(card, ascension_level)
                     card_data_map[card][ascension_level]['viewCnt'] += 1
                     card_data_map[card][ascension_level]['pickCnt'] += 1
                     card_data_map[card][ascension_level]['pickFloorSum'] += int(choice['floor'])
                     if victory:
                         card_data_map[card][ascension_level]['winCnt'] += 1
+
+                    if card not in card_cache_set:
+                        card_cache_set.add(card)
+                        card_data_map[card][ascension_level]['singlePickCnt'] += 1
+                        if victory:
+                            card_data_map[card][ascension_level]['singleWinCnt'] += 1
 
     pass
 
@@ -77,7 +84,8 @@ def set_card_data_default(card, ascension):
     card_data_map.setdefault(card, {})
     card_data = card_data_map[card]
     if ascension not in card_data:
-        card_data[ascension] = {'viewCnt': 0, 'pickCnt': 0, 'winCnt': 0, 'pickFloorSum': 0}
+        card_data[ascension] = {'viewCnt': 0, 'pickCnt': 0, 'winCnt': 0, 'pickFloorSum': 0,
+                                'singlePickCnt': 0, 'singleWinCnt': 0}
 
 
 def set_combat_data_default(ascension):
@@ -118,7 +126,7 @@ def export_victory_data():
         export_data[floor] = l
     df = DataFrame(export_data)
     # print(df)
-    df.to_excel('victory_data.xlsx', index=False)
+    df.to_excel(os.path.join('export', 'victory_data.xlsx'), index=False)
     print('export to victory_data.xlsx success')
 
 
@@ -141,12 +149,13 @@ def export_combat_data_total():
             loseLayerSum.append(round(data['loseLayerSum'] / data['lose'], 1))
         else:
             loseLayerSum.append(0)
-    export_data = {'进阶': ascensions, '胜利次数': victory, '失败次数': lose, '失败平均楼层': loseLayerSum}
+    export_data = {'进阶': ascensions, '胜利次数': victory, '失败次数': lose, '失败平均楼层': loseLayerSum,
+                   '胜率': [v/(v+l) if v+l > 0 else 0 for v, l in zip(victory, lose)]}
     for floor, l in perFloor.items():
         export_data[floor] = l
     df = DataFrame(export_data)
     # print(df)
-    df.to_excel('ascensions_data.xlsx', index=False)
+    df.to_excel(os.path.join('export', 'ascensions_data.xlsx'), index=False)
     print('export to ascensions_data.xlsx success')
 
 
@@ -156,13 +165,18 @@ def export_card_data_total():
     pickCnt = []
     winCnt = []
     pickFloorSum = []
+    singlePickCnt = []
+    singleWinCnt = []
     for (card, card_data) in card_data_map.items():
-        card_total = {'card': card, 'viewCnt': 0, 'pickCnt': 0, 'winCnt': 0, 'pickFloorSum': 0}
+        card_total = {'card': card, 'viewCnt': 0, 'pickCnt': 0, 'winCnt': 0,
+                      'singlePickCnt': 0, 'singleWinCnt': 0, 'pickFloorSum': 0}
         for d in card_data.values():
             card_total['viewCnt'] += d['viewCnt']
             card_total['pickCnt'] += d['pickCnt']
             card_total['winCnt'] += d['winCnt']
             card_total['pickFloorSum'] += d['pickFloorSum']
+            card_total['singlePickCnt'] += d['singlePickCnt']
+            card_total['singleWinCnt'] += d['singleWinCnt']
         if card_total['pickCnt']:
             card_total['pickFloorSum'] = round(card_total['pickFloorSum'] / card_total['pickCnt'], 1)
         else:
@@ -175,18 +189,25 @@ def export_card_data_total():
         viewCnt.append(card_total['viewCnt'])
         pickCnt.append(card_total['pickCnt'])
         winCnt.append(card_total['winCnt'])
+        singlePickCnt.append(card_total['singlePickCnt'])
+        singleWinCnt.append(card_total['singleWinCnt'])
         pickFloorSum.append(card_total['pickFloorSum'])
         # print(card_total)
-    export_data = {'卡牌名称': card_names, '掉落次数': viewCnt, '获取次数': pickCnt, '平均获取楼层': pickFloorSum, '获取并胜利': winCnt}
+    export_data = {'卡牌名称': card_names, '掉落次数': viewCnt, '获取次数': pickCnt,
+                   '选取率': [pick/view if view > 0 else 0 for view, pick in zip(viewCnt, pickCnt)],
+                   '平均获取楼层': pickFloorSum, '获取并胜利': winCnt,
+                   '去重获取次数': singlePickCnt, '去重获取并胜利': singleWinCnt,
+                   '去重胜率': [win/pick if pick > 0 else 0 for pick, win in zip(singlePickCnt, singleWinCnt)]}
     df = DataFrame(export_data)
     # print(df)
-    df.to_excel('cards_data.xlsx', index=False)
+    df.to_excel(os.path.join('export', 'cards_data.xlsx'), index=False)
     print('export to cards_data.xlsx success')
 
 
 if __name__ == '__main__':
     init_card_name_map()
     processJson()
+    os.makedirs('export', exist_ok=True)
     export_card_data_total()
     export_combat_data_total()
     export_victory_data()
