@@ -127,22 +127,89 @@ class VictoryData:
             VictoryData.add_victory_data(-1, floor_reached, victory)
 
 
+class RunData:
+    run_data_list = []
+
+    def __init__(self):
+        self.master_deck = []
+        self.sj_disposedCards = []
+        self.floor_reached = 0
+        self.ascension_level = 0
+        self.fileName = ''
+        self.relics = []
+        self.mod_list = []
+
+    @staticmethod
+    def process(file_name, content):
+        floor_reached = content['event']['floor_reached']
+        ascension_level = int(content['event']['ascension_level'])
+        victory = content['event']['victory']
+        master_deck = content['event']['master_deck']
+        sj_disposedCards = content['event']['sj_disposedCards']
+        mods = content['event']['mods']
+        relics = content['event']['relics']
+        if victory:
+            run_data = RunData()
+            RunData.run_data_list.append(run_data)
+            run_data.floor_reached = floor_reached
+            run_data.ascension_level = ascension_level
+            run_data.master_deck.extend(master_deck)
+            run_data.file_name = file_name
+            run_data.mod_list.extend(mods)
+            run_data.relics.extend(relics)
+            # if str(floor_reached) in sj_disposedCards:
+            #     run_data.sj_disposedCards.extend(sj_disposedCards[str(floor_reached)])
+            if str(floor_reached-1) in sj_disposedCards:
+                run_data.sj_disposedCards.extend(sj_disposedCards[str(floor_reached-1)])
+
+
 class CardInfo:
     card_name_map = {}
+    card_name_share_map = {}
     card_init_cnt_map = defaultdict(lambda: 0)
     card_init_cnt_map.update({'ShoujoKageki:Strike': 4, 'ShoujoKageki:Defend': 4, 'ShoujoKageki:ShineStrike': 1, 'ShoujoKageki:Fall': 1})
     card_rarity_map = {}
+    relic_name_map = {}
+    relic_name_share_map = {}
 
     @staticmethod
     def init():
-        with open('ShoujoKageki-Card-Strings.json', encoding='utf-8') as f:
+        with open(os.path.join('gameFiles', 'ShoujoKageki-Card-Strings.json'), encoding='utf-8') as f:
             content = json.load(f)
             for card, strings in content.items():
                 CardInfo.card_name_map[card] = strings['NAME']
-        with open('card_rarity.json', encoding='utf-8') as f:
+        with open(os.path.join('gameFiles', 'cards.json'), encoding='utf-8') as f:
+            content = json.load(f)
+            for card, strings in content.items():
+                CardInfo.card_name_share_map[card] = strings['NAME']
+        with open(os.path.join('gameFiles', 'card_rarity.json'), encoding='utf-8') as f:
             content = json.load(f)
             for card, strings in content.items():
                 CardInfo.card_rarity_map[card] = strings
+        with open(os.path.join('gameFiles', 'ShoujoKageki-Relic-Strings.json'), encoding='utf-8') as f:
+            content = json.load(f)
+            for card, strings in content.items():
+                CardInfo.relic_name_map[card] = strings['NAME']
+        with open(os.path.join('gameFiles', 'relics.json'), encoding='utf-8') as f:
+            content = json.load(f)
+            for card, strings in content.items():
+                CardInfo.relic_name_share_map[card] = strings['NAME']
+
+    @staticmethod
+    def get_zh_name_of_card_or_default(card):
+        if card in CardInfo.card_name_map:
+            return CardInfo.card_name_map[card]
+        if card in CardInfo.card_name_share_map:
+            return CardInfo.card_name_share_map[card]
+        return card
+
+    @classmethod
+    def get_zh_name_of_relic_or_default(cls, relic):
+        if relic in CardInfo.relic_name_map:
+            return CardInfo.relic_name_map[relic]
+        if relic in CardInfo.relic_name_share_map:
+            return CardInfo.relic_name_share_map[relic]
+        return relic
 
 
 def processJson():
@@ -161,6 +228,7 @@ def processJson():
                 continue
             CombatData.process(content)
             VictoryData.process(content)
+            RunData.process(file_name, content)
             if floor_reached < 3:
                 continue
             CardData.process(file_name, content)
@@ -172,6 +240,12 @@ def get_raw_card_name(name):
     return name
 
 
+def get_card_upgrade_time(name):
+    if '+' in name:
+        return int(name[name.index('+'):])
+    return 0
+
+
 class Export:
     export_data = {}
 
@@ -181,6 +255,7 @@ class Export:
         Export.export_card_data_total()
         Export.export_combat_data_total()
         Export.export_victory_data()
+        Export.export_run_data()
 
         cur_date = datetime.datetime.now().strftime("%Y_%m_%d")
 
@@ -190,6 +265,43 @@ class Export:
                 df = DataFrame(data)
                 df.to_excel(writer, sheet_name=sheet_name, index=False)
                 print(f'export {sheet_name} success')
+
+    @staticmethod
+    def export_run_data():
+        export_data = {'进阶': [run.ascension_level for run in RunData.run_data_list],
+                       '最后楼层': [run.floor_reached for run in RunData.run_data_list],
+                       'mod数': [len(run.mod_list) for run in RunData.run_data_list],
+                       'mod': [' '.join(run.mod_list) for run in RunData.run_data_list],
+                       '遗物数': [len(run.relics) for run in RunData.run_data_list],
+                       '遗物': [Export.parse_relics(run.relics) for run in RunData.run_data_list],
+                       '卡组张数': [len(run.master_deck) for run in RunData.run_data_list],
+                       '卡组': [Export.parse_deck(run.master_deck) for run in RunData.run_data_list],
+                       '最后房间耗尽的闪耀': [Export.parse_deck(run.sj_disposedCards) for run in RunData.run_data_list],
+                       '文件名': [run.file_name for run in RunData.run_data_list]
+                       }
+        Export.export_data["获胜卡组"] = export_data
+
+    @staticmethod
+    def parse_deck(deck):
+        result = []
+        for card in sorted(deck):
+            upgrade = get_card_upgrade_time(card)
+            name = CardInfo.get_zh_name_of_card_or_default(get_raw_card_name(card))
+            if upgrade <= 0:
+                result.append(name)
+            elif upgrade == 1:
+                result.append(f'{name}+')
+            else:
+                result.append(f'{name}+{upgrade}')
+        return ' '.join(result)
+
+    @staticmethod
+    def parse_relics(relics):
+        result = []
+        for relic in sorted(relics):
+            name = CardInfo.get_zh_name_of_relic_or_default(relic)
+            result.append(name)
+        return ' '.join(result)
 
     @staticmethod
     def export_victory_data():
