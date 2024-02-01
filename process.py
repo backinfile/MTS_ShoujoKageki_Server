@@ -55,10 +55,6 @@ class CardData:
                     show_card_cache_set[card] = True
                 if victory and is_pick:
                     card_data.winCnt += 1
-                if is_pass3 and is_pick:
-                    card_data.pass3Cnt += 1
-                if is_kill_heart and is_pick:
-                    card_data.killHeartCnt += 1
                 if is_pick:
                     card_data.pickCnt += 1
                     card_data.pickFloorSum += int(choice['floor'])
@@ -67,6 +63,10 @@ class CardData:
                         card_data.singlePickCnt += 1
                         if victory:
                             card_data.singleWinCnt += 1
+                        if is_pass3:
+                            card_data.pass3Cnt += 1
+                        if is_kill_heart:
+                            card_data.killHeartCnt += 1
         for choice in campfire_choices:
             key = choice['key']
             if key == 'SMITH':
@@ -129,8 +129,10 @@ class CardData:
                        '升级次数': upgradeCnt,
                        '平均升级楼层': [round(floor/cnt, 1) if cnt > 0 else 0 for cnt, floor in zip(upgradeCnt, upgradeFloorSum)],
                        '升级/抓取': [cnt / pick if pick > 0 else 0 for cnt, pick in zip(upgradeCnt, pickCntWithInit)],
-                       '获取并通过3层次数': pass3Cnt,
-                       '获取并通过3层比率': [p/pick if pick > 0 else 0 for pick, p in zip(pickCnt, pass3Cnt)],
+                       '去重获取并通过3层次数': pass3Cnt,
+                       '去重获取并通过3层比率': [p/pick if pick > 0 else 0 for pick, p in zip(singlePickCnt, pass3Cnt)],
+                       '去重碎心次数': killHeartCnt,
+                       '去重碎心比率': [p/pick if pick > 0 else 0 for pick, p in zip(singlePickCnt, killHeartCnt)],
                        '出现胜率': [win/view if view > 0 else 0 for view, win in zip(viewCnt, showWinCnt)],
                        }
         Export.export_data["卡牌数据"] = export_data
@@ -318,25 +320,33 @@ class DeathData:
     death_data_map = defaultdict(lambda: DeathData())
 
     def __init__(self):
-        self.cnt = 0
+        self.deathCnt = 0
+        self.showCnt = 0
 
     @staticmethod
     def process(content):
+        damage_taken = content['event']['damage_taken']
+        for data in damage_taken:
+            enemy = data['enemies']
+            DeathData.death_data_map[enemy].showCnt += 1
         if 'killed_by' in content['event']:
             killed_by = content['event']['killed_by']
-            DeathData.death_data_map[killed_by].cnt += 1
+            DeathData.death_data_map[killed_by].deathCnt += 1
 
     @staticmethod
     def export_death_data():
         names = []
         en_names = []
         cnt = []
-        for name, data in sorted(DeathData.death_data_map.items(), key=lambda d: d[1].cnt, reverse=True):
+        showCnt = []
+        for name, data in sorted(DeathData.death_data_map.items(), key=lambda d: d[1].deathCnt, reverse=True):
             names.append(GameInfo.get_zh_name_of_monster_or_default(name))
             en_names.append(name)
-            cnt.append(data.cnt)
+            cnt.append(data.deathCnt)
+            showCnt.append(data.showCnt)
         export_data = {'名称': names, '英文名称': en_names,
-                       '次数': cnt
+                       '死亡次数': cnt, '出现次数': showCnt,
+                       '死亡比例': [d/s if s > 0 else 0 for d, s in zip(cnt, showCnt)]
                        }
         Export.export_data["死因"] = export_data
 
