@@ -351,6 +351,39 @@ class DeathData:
         Export.export_data["死因"] = export_data
 
 
+class LangData:
+    lang_data_map = defaultdict(lambda: LangData())
+    host_map_cache = set()
+
+    def __init__(self):
+        self.peopleCnt = 0
+        self.runCnt = 0
+
+    @staticmethod
+    def process(content):
+        host = content['host']
+        language = content['event']['language']
+        if host not in LangData.host_map_cache:
+            LangData.host_map_cache.add(host)
+            LangData.lang_data_map[language].peopleCnt += 1
+        LangData.lang_data_map[language].runCnt += 1
+
+    @staticmethod
+    def export_lang_data():
+        language = []
+        peopleCnt = []
+        runCnt = []
+        for lang, data in LangData.lang_data_map.items():
+            language.append(lang)
+            peopleCnt.append(data.peopleCnt)
+            runCnt.append(data.runCnt)
+        export_data = {'语言': language,
+                       '人数': peopleCnt,
+                       '对局数': runCnt
+                       }
+        Export.export_data["语言"] = export_data
+
+
 class GameInfo:
     card_name_map = {}
     card_name_share_map = {}
@@ -469,6 +502,7 @@ class Export:
                 CombatData.process(content)
                 VictoryData.process(content)
                 RunData.process(file_name, content)
+                LangData.process(content)
                 if floor_reached < 3:
                     continue
                 CardData.process(file_name, content)
@@ -482,6 +516,7 @@ class Export:
         VictoryData.export_victory_data()
         RunData.export_run_data()
         DeathData.export_death_data()
+        LangData.export_lang_data()
 
         cur_date = datetime.datetime.now().strftime("%Y_%m_%d")
 

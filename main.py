@@ -39,12 +39,19 @@ class MyHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(json.dumps(response_view(self.path)).encode())
 
+    def reponse_json(self, content):
+        self.send_response(200)
+        self.send_header('Content-type', 'application/json')
+        self.end_headers()
+        self.wfile.write(json.dumps(content).encode())
+
 
 def response_view(path):
     print('request path = ' + path)
     if path == '/dataSize':
         return 'dataSize = ' + str(len(os.listdir('data')))
     return "response"
+
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
