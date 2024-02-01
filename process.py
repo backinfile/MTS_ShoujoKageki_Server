@@ -78,6 +78,63 @@ class CardData:
                     card_data.upgradeCnt += 1
                     card_data.upgradeFloorSum += floor
 
+    @staticmethod
+    def export_card_data_total():
+        card_names = []
+        viewCnt = []
+        pickCnt = []
+        winCnt = []
+        pickFloorSum = []
+        singlePickCnt = []
+        singleWinCnt = []
+        upgradeCnt = []
+        upgradeFloorSum = []
+        pickCntWithInit = []
+        rarity = []
+        pass3Cnt = []
+        killHeartCnt = []
+        showWinCnt = []
+        for (card, card_data) in CardData.card_data_map.items():
+            if card not in GameInfo.card_name_map:
+                if 'ShoujoKageki' in card:
+                    print(f'ignore card {card}')
+                continue
+            viewCntNum = sum((d.viewCnt for d in card_data.values()))
+            pickCntNum = sum((d.pickCnt for d in card_data.values()))
+            winCntNum = sum((d.winCnt for d in card_data.values()))
+
+            card_names.append( GameInfo.card_name_map[card] )
+            viewCnt.append(viewCntNum)
+            pickCnt.append(pickCntNum)
+            winCnt.append(winCntNum)
+            singlePickCnt.append(sum((d.singlePickCnt for d in card_data.values())))
+            singleWinCnt.append(sum((d.singleWinCnt for d in card_data.values())))
+            pickFloorSum.append(sum((d.pickFloorSum for d in card_data.values())))
+            upgradeCnt.append(sum((d.upgradeCnt for d in card_data.values())))
+            upgradeFloorSum.append(sum((d.upgradeFloorSum for d in card_data.values())))
+            pickCntWithInit.append( pickCntNum + GameInfo.card_init_cnt_map[card] * CardData.run_data_cnt )
+            rarity.append( GameInfo.card_rarity_map[card] if card in GameInfo.card_rarity_map else '' )
+            pass3Cnt.append(sum((d.pass3Cnt for d in card_data.values())))
+            killHeartCnt.append(sum((d.killHeartCnt for d in card_data.values())))
+            showWinCnt.append(sum((d.showWinCnt for d in card_data.values())))
+            # print(card_total)
+
+        upgradeCntSum = sum(upgradeCnt)
+        export_data = {'卡牌名称': card_names, '稀有度': rarity,
+                       '掉落次数': viewCnt, '获取次数': pickCnt, '获取并胜利次数': winCnt,
+                       '选取率': [pick/view if view > 0 else 0 for view, pick in zip(viewCnt, pickCnt)],
+                       '去重获取次数': singlePickCnt, '去重获取并胜利次数': singleWinCnt,
+                       '平均获取楼层': [round(floor/pick, 1) if pick > 0 else 0 for pick, floor in zip(pickCnt, pickFloorSum)],
+                       '去重胜率': [win/pick if pick > 0 else 0 for pick, win in zip(singlePickCnt, singleWinCnt)],
+                       '升级次数': upgradeCnt,
+                       '平均升级楼层': [round(floor/cnt, 1) if cnt > 0 else 0 for cnt, floor in zip(upgradeCnt, upgradeFloorSum)],
+                       '升级/抓取': [cnt / pick if pick > 0 else 0 for cnt, pick in zip(upgradeCnt, pickCntWithInit)],
+                       '获取并通过3层次数': pass3Cnt,
+                       '获取并通过3层比率': [p/pick if pick > 0 else 0 for pick, p in zip(pickCnt, pass3Cnt)],
+                       '出现胜率': [win/view if view > 0 else 0 for view, win in zip(viewCnt, showWinCnt)],
+                       }
+        Export.export_data["卡牌数据"] = export_data
+
 
 class CombatData:
     # ascension:{victory:cnt, lose:cnt, loseLayerSum:cnt, perFloor:{floor:cnt}}
@@ -116,233 +173,6 @@ class CombatData:
             combat_data.pass3Cnt += 1
         if victory and floor_reached > 52:
             combat_data.killHeartCnt += 1
-
-
-class VictoryData:
-    # ascension:{floor:{victory:cnt, lose:cnt}}
-    victory_data_map = defaultdict(lambda: dict((i, VictoryData()) for i in range(1, 58)))
-
-    def __init__(self):
-        self.victory = 0
-        self.lose = 0
-
-    @staticmethod
-    def process(content):
-        floor_reached = content['event']['floor_reached']
-        ascension_level = int(content['event']['ascension_level'])
-        victory = content['event']['victory']
-        VictoryData.add_victory_data(ascension_level, floor_reached, victory)
-        VictoryData.add_victory_data(-1, floor_reached, victory)
-
-    @staticmethod
-    def add_victory_data(ascension_level, floor_reached, victory):
-        if victory:
-            for i in range(1, floor_reached + 1):
-                VictoryData.victory_data_map[ascension_level][i].victory += 1
-        else:
-            for i in range(1, floor_reached + 1):
-                VictoryData.victory_data_map[ascension_level][i].lose += 1
-
-
-class RunData:
-    run_data_list = []
-
-    def __init__(self):
-        self.master_deck = []
-        self.sj_disposedCards = []
-        self.floor_reached = 0
-        self.ascension_level = 0
-        self.fileName = ''
-        self.relics = []
-        self.mod_list = []
-
-    @staticmethod
-    def process(file_name, content):
-        floor_reached = content['event']['floor_reached']
-        ascension_level = int(content['event']['ascension_level'])
-        victory = content['event']['victory']
-        master_deck = content['event']['master_deck']
-        sj_disposedCards = content['event']['sj_disposedCards']
-        mods = content['event']['mods']
-        relics = content['event']['relics']
-        if victory:
-            run_data = RunData()
-            RunData.run_data_list.append(run_data)
-            run_data.floor_reached = floor_reached
-            run_data.ascension_level = ascension_level
-            run_data.master_deck.extend(master_deck)
-            run_data.file_name = file_name
-            run_data.mod_list.extend(mods)
-            run_data.relics.extend(relics)
-            # if str(floor_reached) in sj_disposedCards:
-            #     run_data.sj_disposedCards.extend(sj_disposedCards[str(floor_reached)])
-            if str(floor_reached-1) in sj_disposedCards:
-                run_data.sj_disposedCards.extend(sj_disposedCards[str(floor_reached-1)])
-
-
-class DeathData:
-    death_data_list = []
-
-
-class CardInfo:
-    card_name_map = {}
-    card_name_share_map = {}
-    card_init_cnt_map = defaultdict(lambda: 0)
-    card_init_cnt_map.update({'ShoujoKageki:Strike': 4, 'ShoujoKageki:Defend': 4, 'ShoujoKageki:ShineStrike': 1, 'ShoujoKageki:Fall': 1})
-    card_rarity_map = {}
-    relic_name_map = {}
-    relic_name_share_map = {}
-
-    @staticmethod
-    def init():
-        with open(os.path.join('gameFiles', 'ShoujoKageki-Card-Strings.json'), encoding='utf-8') as f:
-            content = json.load(f)
-            for card, strings in content.items():
-                CardInfo.card_name_map[card] = strings['NAME']
-        with open(os.path.join('gameFiles', 'cards.json'), encoding='utf-8') as f:
-            content = json.load(f)
-            for card, strings in content.items():
-                CardInfo.card_name_share_map[card] = strings['NAME']
-        with open(os.path.join('gameFiles', 'card_rarity.json'), encoding='utf-8') as f:
-            content = json.load(f)
-            for card, strings in content.items():
-                CardInfo.card_rarity_map[card] = strings
-        with open(os.path.join('gameFiles', 'ShoujoKageki-Relic-Strings.json'), encoding='utf-8') as f:
-            content = json.load(f)
-            for card, strings in content.items():
-                CardInfo.relic_name_map[card] = strings['NAME']
-        with open(os.path.join('gameFiles', 'relics.json'), encoding='utf-8') as f:
-            content = json.load(f)
-            for card, strings in content.items():
-                CardInfo.relic_name_share_map[card] = strings['NAME']
-
-    @staticmethod
-    def get_zh_name_of_card_or_default(card):
-        if card in CardInfo.card_name_map:
-            return CardInfo.card_name_map[card]
-        if card in CardInfo.card_name_share_map:
-            return CardInfo.card_name_share_map[card]
-        return card
-
-    @classmethod
-    def get_zh_name_of_relic_or_default(cls, relic):
-        if relic in CardInfo.relic_name_map:
-            return CardInfo.relic_name_map[relic]
-        if relic in CardInfo.relic_name_share_map:
-            return CardInfo.relic_name_share_map[relic]
-        return relic
-
-
-def processJson():
-    files = os.listdir('data')
-    for file_name in files:
-        if not file_name.endswith('.json'):
-            continue
-        with open(os.path.join('data', file_name), 'r') as f:
-            content = json.load(f)
-            floor_reached = content['event']['floor_reached']
-            mods = content['event']['mods']
-            victory = content['event']['victory']
-            ascension_level = int(content['event']['ascension_level'])
-            if 'Loadout Mod' in mods:
-                # print(file_name)
-                continue
-            CombatData.process(content)
-            VictoryData.process(content)
-            RunData.process(file_name, content)
-            if floor_reached < 3:
-                continue
-            CardData.process(file_name, content)
-
-
-def get_raw_card_name(name):
-    if '+' in name:
-        return name[:name.index('+')]
-    return name
-
-
-def get_card_upgrade_time(name):
-    if '+' in name:
-        return int(name[name.index('+'):])
-    return 0
-
-
-class Export:
-    export_data = {}
-
-    @staticmethod
-    def export():
-        Export.export_data.clear()
-        Export.export_card_data_total()
-        Export.export_combat_data_total()
-        Export.export_victory_data()
-        Export.export_run_data()
-
-        cur_date = datetime.datetime.now().strftime("%Y_%m_%d")
-
-        os.makedirs('export', exist_ok=True)
-        with pandas.ExcelWriter(os.path.join('export', 'export_'+cur_date+'.xlsx')) as writer:
-            for sheet_name, data in Export.export_data.items():
-                df = DataFrame(data)
-                df.to_excel(writer, sheet_name=sheet_name, index=False)
-                print(f'export {sheet_name} success')
-
-    @staticmethod
-    def export_run_data():
-        export_data = {'进阶': [run.ascension_level for run in RunData.run_data_list],
-                       '最后楼层': [run.floor_reached for run in RunData.run_data_list],
-                       'mod数': [len(run.mod_list) for run in RunData.run_data_list],
-                       'mod': [' '.join(run.mod_list) for run in RunData.run_data_list],
-                       '遗物数': [len(run.relics) for run in RunData.run_data_list],
-                       '遗物': [Export.parse_relics(run.relics) for run in RunData.run_data_list],
-                       '卡组张数': [len(run.master_deck) for run in RunData.run_data_list],
-                       '卡组': [Export.parse_deck(run.master_deck) for run in RunData.run_data_list],
-                       '最后房间耗尽的闪耀': [Export.parse_deck(run.sj_disposedCards) for run in RunData.run_data_list],
-                       '文件名': [run.file_name for run in RunData.run_data_list]
-                       }
-        Export.export_data["获胜卡组"] = export_data
-
-    @staticmethod
-    def parse_deck(deck):
-        result = []
-        for card in sorted(deck):
-            upgrade = get_card_upgrade_time(card)
-            name = CardInfo.get_zh_name_of_card_or_default(get_raw_card_name(card))
-            if upgrade <= 0:
-                result.append(name)
-            elif upgrade == 1:
-                result.append(f'{name}+')
-            else:
-                result.append(f'{name}+{upgrade}')
-        return ' '.join(result)
-
-    @staticmethod
-    def parse_relics(relics):
-        result = []
-        for relic in sorted(relics):
-            name = CardInfo.get_zh_name_of_relic_or_default(relic)
-            result.append(name)
-        return ' '.join(result)
-
-    @staticmethod
-    def export_victory_data():
-        ascensions = []
-        perFloor = dict((i, []) for i in range(1, 58))
-        for ascension in range(-1, 21):
-            if ascension not in VictoryData.victory_data_map:
-                continue
-            ascensions.append(ascension)
-            for floor, data in VictoryData.victory_data_map[ascension].items():
-                victory = data.victory
-                lose = data.lose
-                if victory + lose > 0:
-                    perFloor[floor].append(victory / (victory + lose))
-                else:
-                    perFloor[floor].append(0)
-        export_data = {'进阶': ascensions}
-        for floor, l in perFloor.items():
-            export_data[floor] = l
-        Export.export_data["各层胜率"] = export_data
 
     @staticmethod
     def export_combat_data_total():
@@ -386,65 +216,274 @@ class Export:
             export_data[floor] = l
         Export.export_data["进阶胜率"] = export_data
 
+
+class VictoryData:
+    # ascension:{floor:{victory:cnt, lose:cnt}}
+    victory_data_map = defaultdict(lambda: dict((i, VictoryData()) for i in range(1, 58)))
+
+    def __init__(self):
+        self.victory = 0
+        self.lose = 0
+
     @staticmethod
-    def export_card_data_total():
-        card_names = []
-        viewCnt = []
-        pickCnt = []
-        winCnt = []
-        pickFloorSum = []
-        singlePickCnt = []
-        singleWinCnt = []
-        upgradeCnt = []
-        upgradeFloorSum = []
-        pickCntWithInit = []
-        rarity = []
-        pass3Cnt = []
-        killHeartCnt = []
-        showWinCnt = []
-        for (card, card_data) in CardData.card_data_map.items():
-            if card not in CardInfo.card_name_map:
-                if 'ShoujoKageki' in card:
-                    print(f'ignore card {card}')
+    def process(content):
+        floor_reached = content['event']['floor_reached']
+        ascension_level = int(content['event']['ascension_level'])
+        victory = content['event']['victory']
+        VictoryData.add_victory_data(ascension_level, floor_reached, victory)
+        VictoryData.add_victory_data(-1, floor_reached, victory)
+
+    @staticmethod
+    def add_victory_data(ascension_level, floor_reached, victory):
+        if victory:
+            for i in range(1, floor_reached + 1):
+                VictoryData.victory_data_map[ascension_level][i].victory += 1
+        else:
+            for i in range(1, floor_reached + 1):
+                VictoryData.victory_data_map[ascension_level][i].lose += 1
+
+    @staticmethod
+    def export_victory_data():
+        ascensions = []
+        perFloor = dict((i, []) for i in range(1, 58))
+        for ascension in range(-1, 21):
+            if ascension not in VictoryData.victory_data_map:
                 continue
-            viewCntNum = sum((d.viewCnt for d in card_data.values()))
-            pickCntNum = sum((d.pickCnt for d in card_data.values()))
-            winCntNum = sum((d.winCnt for d in card_data.values()))
+            ascensions.append(ascension)
+            for floor, data in VictoryData.victory_data_map[ascension].items():
+                victory = data.victory
+                lose = data.lose
+                if victory + lose > 0:
+                    perFloor[floor].append(victory / (victory + lose))
+                else:
+                    perFloor[floor].append(0)
+        export_data = {'进阶': ascensions}
+        for floor, l in perFloor.items():
+            export_data[floor] = l
+        Export.export_data["各层胜率"] = export_data
 
-            card_names.append(CardInfo.card_name_map[card])
-            viewCnt.append(viewCntNum)
-            pickCnt.append(pickCntNum)
-            winCnt.append(winCntNum)
-            singlePickCnt.append(sum((d.singlePickCnt for d in card_data.values())))
-            singleWinCnt.append(sum((d.singleWinCnt for d in card_data.values())))
-            pickFloorSum.append(sum((d.pickFloorSum for d in card_data.values())))
-            upgradeCnt.append(sum((d.upgradeCnt for d in card_data.values())))
-            upgradeFloorSum.append(sum((d.upgradeFloorSum for d in card_data.values())))
-            pickCntWithInit.append(pickCntNum + CardInfo.card_init_cnt_map[card] * CardData.run_data_cnt)
-            rarity.append(CardInfo.card_rarity_map[card] if card in CardInfo.card_rarity_map else '')
-            pass3Cnt.append(sum((d.pass3Cnt for d in card_data.values())))
-            killHeartCnt.append(sum((d.killHeartCnt for d in card_data.values())))
-            showWinCnt.append(sum((d.showWinCnt for d in card_data.values())))
-            # print(card_total)
 
-        upgradeCntSum = sum(upgradeCnt)
-        export_data = {'卡牌名称': card_names, '稀有度': rarity,
-                       '掉落次数': viewCnt, '获取次数': pickCnt, '获取并胜利次数': winCnt,
-                       '选取率': [pick/view if view > 0 else 0 for view, pick in zip(viewCnt, pickCnt)],
-                       '去重获取次数': singlePickCnt, '去重获取并胜利次数': singleWinCnt,
-                       '平均获取楼层': [round(floor/pick, 1) if pick > 0 else 0 for pick, floor in zip(pickCnt, pickFloorSum)],
-                       '去重胜率': [win/pick if pick > 0 else 0 for pick, win in zip(singlePickCnt, singleWinCnt)],
-                       '升级次数': upgradeCnt,
-                       '平均升级楼层': [round(floor/cnt, 1) if cnt > 0 else 0 for cnt, floor in zip(upgradeCnt, upgradeFloorSum)],
-                       '升级/抓取': [cnt / pick if pick > 0 else 0 for cnt, pick in zip(upgradeCnt, pickCntWithInit)],
-                       '获取并通过3层次数': pass3Cnt,
-                       '获取并通过3层比率': [p/pick if pick > 0 else 0 for pick, p in zip(pickCnt, pass3Cnt)],
-                       '出现胜率': [win/view if view > 0 else 0 for view, win in zip(viewCnt, showWinCnt)],
+class RunData:
+    run_data_list = []
+
+    def __init__(self):
+        self.master_deck = []
+        self.sj_disposedCards = []
+        self.floor_reached = 0
+        self.ascension_level = 0
+        self.fileName = ''
+        self.relics = []
+        self.mod_list = []
+
+    @staticmethod
+    def process(file_name, content):
+        floor_reached = content['event']['floor_reached']
+        ascension_level = int(content['event']['ascension_level'])
+        victory = content['event']['victory']
+        master_deck = content['event']['master_deck']
+        sj_disposedCards = content['event']['sj_disposedCards']
+        mods = content['event']['mods']
+        relics = content['event']['relics']
+        if victory:
+            run_data = RunData()
+            RunData.run_data_list.append(run_data)
+            run_data.floor_reached = floor_reached
+            run_data.ascension_level = ascension_level
+            run_data.master_deck.extend(master_deck)
+            run_data.file_name = file_name
+            run_data.mod_list.extend(mods)
+            run_data.relics.extend(relics)
+            # if str(floor_reached) in sj_disposedCards:
+            #     run_data.sj_disposedCards.extend(sj_disposedCards[str(floor_reached)])
+            if str(floor_reached-1) in sj_disposedCards:
+                run_data.sj_disposedCards.extend(sj_disposedCards[str(floor_reached-1)])
+
+    @staticmethod
+    def export_run_data():
+        export_data = {'进阶': [run.ascension_level for run in RunData.run_data_list],
+                       '最后楼层': [run.floor_reached for run in RunData.run_data_list],
+                       'mod数': [len(run.mod_list) for run in RunData.run_data_list],
+                       'mod': [' '.join(run.mod_list) for run in RunData.run_data_list],
+                       '遗物数': [len(run.relics) for run in RunData.run_data_list],
+                       '遗物': [GameInfo.parse_relics( run.relics ) for run in RunData.run_data_list],
+                       '卡组张数': [len(run.master_deck) for run in RunData.run_data_list],
+                       '卡组': [GameInfo.parse_deck( run.master_deck ) for run in RunData.run_data_list],
+                       '最后房间耗尽的闪耀': [GameInfo.parse_deck( run.sj_disposedCards ) for run in RunData.run_data_list],
+                       '文件名': [run.file_name for run in RunData.run_data_list]
                        }
-        Export.export_data["卡牌数据"] = export_data
+        Export.export_data["获胜卡组"] = export_data
+
+
+class DeathData:
+    death_data_map = defaultdict(lambda: DeathData())
+
+    def __init__(self):
+        self.cnt = 0
+
+    @staticmethod
+    def process(content):
+        if 'killed_by' in content['event']:
+            killed_by = content['event']['killed_by']
+            DeathData.death_data_map[killed_by].cnt += 1
+
+    @staticmethod
+    def export_death_data():
+        names = []
+        en_names = []
+        cnt = []
+        for name, data in sorted(DeathData.death_data_map.items(), key=lambda d: d[1].cnt, reverse=True):
+            names.append(GameInfo.get_zh_name_of_monster_or_default(name))
+            en_names.append(name)
+            cnt.append(data.cnt)
+        export_data = {'名称': names, '英文名称': en_names,
+                       '次数': cnt
+                       }
+        Export.export_data["死因"] = export_data
+
+
+class GameInfo:
+    card_name_map = {}
+    card_name_share_map = {}
+    card_init_cnt_map = defaultdict(lambda: 0)
+    card_init_cnt_map.update({'ShoujoKageki:Strike': 4, 'ShoujoKageki:Defend': 4, 'ShoujoKageki:ShineStrike': 1, 'ShoujoKageki:Fall': 1})
+    card_rarity_map = {}
+    relic_name_map = {}
+    relic_name_share_map = {}
+    monster_name_map = {}
+
+    @staticmethod
+    def init():
+        with open(os.path.join('gameFiles', 'ShoujoKageki-Card-Strings.json'), encoding='utf-8') as f:
+            content = json.load(f)
+            for card, strings in content.items():
+                GameInfo.card_name_map[card] = strings['NAME']
+        with open(os.path.join('gameFiles', 'cards.json'), encoding='utf-8') as f:
+            content = json.load(f)
+            for card, strings in content.items():
+                GameInfo.card_name_share_map[card] = strings['NAME']
+        with open(os.path.join('gameFiles', 'card_rarity.json'), encoding='utf-8') as f:
+            content = json.load(f)
+            for card, strings in content.items():
+                GameInfo.card_rarity_map[card] = strings
+        with open(os.path.join('gameFiles', 'ShoujoKageki-Relic-Strings.json'), encoding='utf-8') as f:
+            content = json.load(f)
+            for card, strings in content.items():
+                GameInfo.relic_name_map[card] = strings['NAME']
+        with open(os.path.join('gameFiles', 'relics.json'), encoding='utf-8') as f:
+            content = json.load(f)
+            for card, strings in content.items():
+                GameInfo.relic_name_share_map[card] = strings['NAME']
+        with open(os.path.join('gameFiles', 'monsters.json'), encoding='utf-8') as f:
+            content = json.load(f)
+            for monster, strings in content.items():
+                GameInfo.monster_name_map[monster] = strings['NAME']
+
+    @staticmethod
+    def get_zh_name_of_card_or_default(card):
+        if card in GameInfo.card_name_map:
+            return GameInfo.card_name_map[card]
+        if card in GameInfo.card_name_share_map:
+            return GameInfo.card_name_share_map[card]
+        return card
+
+    @classmethod
+    def get_zh_name_of_relic_or_default(cls, relic):
+        if relic in GameInfo.relic_name_map:
+            return GameInfo.relic_name_map[relic]
+        if relic in GameInfo.relic_name_share_map:
+            return GameInfo.relic_name_share_map[relic]
+        return relic
+
+    @staticmethod
+    def get_zh_name_of_monster_or_default(monster):
+        if monster in GameInfo.monster_name_map:
+            return GameInfo.monster_name_map[monster]
+        name = monster.replace(' ', '')
+        if name in GameInfo.monster_name_map:
+            return GameInfo.monster_name_map[name]
+        return monster
+
+    @staticmethod
+    def parse_deck(deck):
+        result = []
+        for card in sorted(deck):
+            upgrade = get_card_upgrade_time(card)
+            name = GameInfo.get_zh_name_of_card_or_default( get_raw_card_name( card ) )
+            if upgrade <= 0:
+                result.append(name)
+            elif upgrade == 1:
+                result.append(f'{name}+')
+            else:
+                result.append(f'{name}+{upgrade}')
+        return ' '.join(result)
+
+    @staticmethod
+    def parse_relics(relics):
+        result = []
+        for relic in sorted(relics):
+            name = GameInfo.get_zh_name_of_relic_or_default( relic )
+            result.append(name)
+        return ' '.join(result)
+
+
+def get_raw_card_name(name):
+    if '+' in name:
+        return name[:name.index('+')]
+    return name
+
+
+def get_card_upgrade_time(name):
+    if '+' in name:
+        return int(name[name.index('+'):])
+    return 0
+
+
+class Export:
+    export_data = {}
+
+    @staticmethod
+    def process():
+        files = os.listdir('data')
+        for file_name in files:
+            if not file_name.endswith('.json'):
+                continue
+            with open(os.path.join('data', file_name), 'r') as f:
+                content = json.load(f)
+                floor_reached = content['event']['floor_reached']
+                mods = content['event']['mods']
+                victory = content['event']['victory']
+                ascension_level = int(content['event']['ascension_level'])
+                if 'Loadout Mod' in mods:
+                    # print(file_name)
+                    continue
+                CombatData.process(content)
+                VictoryData.process(content)
+                RunData.process(file_name, content)
+                if floor_reached < 3:
+                    continue
+                CardData.process(file_name, content)
+                DeathData.process(content)
+
+    @staticmethod
+    def export():
+        Export.export_data.clear()
+        CardData.export_card_data_total()
+        CombatData.export_combat_data_total()
+        VictoryData.export_victory_data()
+        RunData.export_run_data()
+        DeathData.export_death_data()
+
+        cur_date = datetime.datetime.now().strftime("%Y_%m_%d")
+
+        os.makedirs('export', exist_ok=True)
+        with pandas.ExcelWriter(os.path.join('export', 'export_'+cur_date+'.xlsx')) as writer:
+            for sheet_name, data in Export.export_data.items():
+                df = DataFrame(data)
+                df.to_excel(writer, sheet_name=sheet_name, index=False)
+                print(f'export {sheet_name} success')
 
 
 if __name__ == '__main__':
-    CardInfo.init()
-    processJson()
+    GameInfo.init()
+    Export.process()
     Export.export()
