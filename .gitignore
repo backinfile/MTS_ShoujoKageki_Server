@@ -2,4 +2,8 @@ data/
 venv/
 .idea/
 export/
+dist/
+build/
 *.xlsx
+*.png
+*.spec

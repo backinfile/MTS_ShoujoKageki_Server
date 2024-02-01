@@ -1,6 +1,8 @@
 import datetime
 import os.path
+import sys
 from collections import defaultdict
+from io import StringIO
 
 import pandas
 from pandas import DataFrame
@@ -8,12 +10,18 @@ import json
 import openpyxl
 import urllib.request
 import PySimpleGUI as sg
+import matplotlib.pyplot as plt
 
 
 class CardData:
     # card:{ascension:CardData}
     card_data_map = defaultdict(lambda: defaultdict(lambda: CardData()))
     run_data_cnt = 0
+
+    @staticmethod
+    def clear():
+        CardData.card_data_map.clear()
+        run_data_cnt = 0
 
     def __init__(self):
         self.viewCnt = 0
@@ -144,6 +152,10 @@ class CombatData:
     # ascension:{victory:cnt, lose:cnt, loseLayerSum:cnt, perFloor:{floor:cnt}}
     combat_data_map = defaultdict(lambda: CombatData())
 
+    @staticmethod
+    def clear():
+        CombatData.combat_data_map.clear()
+
     def __init__(self):
         self.victory = 0
         self.lose = 0
@@ -225,6 +237,10 @@ class VictoryData:
     # ascension:{floor:{victory:cnt, lose:cnt}}
     victory_data_map = defaultdict(lambda: dict((i, VictoryData()) for i in range(1, 58)))
 
+    @staticmethod
+    def clear():
+        VictoryData.victory_data_map.clear()
+
     def __init__(self):
         self.victory = 0
         self.lose = 0
@@ -236,8 +252,8 @@ class VictoryData:
         victory = content['event']['victory']
         VictoryData.add_victory_data(ascension_level, floor_reached, victory)
         VictoryData.add_victory_data(-1, floor_reached, victory)
-        if floor_reached >= 58:
-            print(file_name)
+        # if floor_reached >= 58:
+        #     print(file_name)
 
     @staticmethod
     def add_victory_data(ascension_level, floor_reached, victory):
@@ -275,6 +291,10 @@ class VictoryData:
 
 class RunData:
     run_data_list = []
+
+    @staticmethod
+    def clear():
+        RunData.run_data_list.clear()
 
     def __init__(self):
         self.master_deck = []
@@ -327,6 +347,10 @@ class RunData:
 class DeathData:
     death_data_map = defaultdict(lambda: DeathData())
 
+    @staticmethod
+    def clear():
+        DeathData.death_data_map.clear()
+
     def __init__(self):
         self.deathCnt = 0
         self.showCnt = 0
@@ -362,6 +386,11 @@ class DeathData:
 class LangData:
     lang_data_map = defaultdict(lambda: LangData())
     host_map_cache = set()
+
+    @staticmethod
+    def clear():
+        LangData.lang_data_map.clear()
+        LangData.host_map_cache.clear()
 
     def __init__(self):
         self.peopleCnt = 0
@@ -494,6 +523,14 @@ class Export:
 
     @staticmethod
     def process():
+        # clear data
+        CardData.clear()
+        CombatData.clear()
+        VictoryData.clear()
+        RunData.clear()
+        LangData.clear()
+        DeathData.clear()
+
         files = os.listdir('data')
         for file_name in files:
             if not file_name.endswith('.json'):
@@ -549,12 +586,107 @@ def pull_data():
         with open(os.path.join('data', content['name']), mode='w') as f:
             f.write(content['content'])
     print(f'pull finish {len(json_data)}')
+    return len(json_data)
+
+
+def show_windows():
+    layout = [
+        [
+            sg.Button('更新数据(不要常点)', key='-UPDATE-', focus=False),
+            sg.Button('生成Excel', key='-EXCEL-'),
+            sg.Button('生成图表', key='-CHART-')
+        ],
+        [
+            sg.Multiline(size=(60, 10), key='-LOG-', disabled=True)
+        ],
+    ]
+    window = sg.Window("Data Processor", layout)
+
+    def log(text):
+        text = text.replace('\n', '')
+        if text:
+            window['-LOG-'].print(text)
+
+    class IO(StringIO):
+        write = log
+    sys.stdout = IO
+
+    # Run the Event Loop
+    while True:
+        event, values = window.read()
+        if event == "Exit" or event == sg.WIN_CLOSED:
+            break
+        elif event == "-UPDATE-":
+            log(f'start update')
+            try:
+                pull_data()
+            except Exception as e:
+                log(f'error {e}')
+        elif event == '-EXCEL-':
+            log(f'start export excel')
+            try:
+                Export.process()
+                Export.export()
+            except Exception as e:
+                log(f'error {e}')
+        elif event == '-CHART-':
+            log(f'start export chart')
+            try:
+                Export.process()
+                Export.export()
+                export_chart_1()
+                export_chart_2()
+                log(f'success export chart')
+            except Exception as e:
+                log(f'error {e}')
+
+    window.close()
+
+
+def export_chart_1():
+    data = Export.export_data['卡牌数据']
+    data_size = len(data['卡牌名称'])
+    order_dict = {'BASIC': 0, 'COMMON': 1, 'UNCOMMON': 2, 'RARE':3}
+    df = DataFrame({
+        '卡牌名称': data['卡牌名称'],
+        '选取率': data['选取率'],
+        '去重胜率': data['去重胜率'],
+        '稀有度': [order_dict[r] for r in data['稀有度']]})
+    df = df.sort_values(by=['稀有度', '去重胜率'])
+    df = df.drop(['稀有度'], axis=1)
+    plt.rcParams['font.sans-serif'] = ['SimHei']
+    plt.rcParams['axes.unicode_minus'] = False
+    fig = df.plot(kind='barh', figsize=(5, 14), x='卡牌名称', width=0.9, title='按去重胜率')
+    # fig.margins(x=0)
+    plt.subplots_adjust(left=0.3, bottom=0.05, top=0.95)
+    plt.savefig('按去重胜率.png', dpi=100)
+    print('生成 按去重胜率.png')
+
+
+def export_chart_2():
+    data = Export.export_data['卡牌数据']
+    data_size = len(data['卡牌名称'])
+    order_dict = {'BASIC': 0, 'COMMON': 1, 'UNCOMMON': 2, 'RARE':3}
+    df = DataFrame({
+        '卡牌名称': data['卡牌名称'],
+        '选取率': data['选取率'],
+        '去重胜率': data['去重胜率'],
+        '稀有度': [order_dict[r] for r in data['稀有度']]})
+    df = df.sort_values(by=['稀有度', '选取率'])
+    df = df.drop(['稀有度'], axis=1)
+    plt.rcParams['font.sans-serif'] = ['SimHei']
+    plt.rcParams['axes.unicode_minus'] = False
+    fig = df.plot(kind='barh', figsize=(5, 14), x='卡牌名称', width=0.9, title='按选取率')
+    # fig.margins(x=0)
+    plt.subplots_adjust(left=0.3, bottom=0.05, top=0.95)
+    plt.savefig('按选取率.png', dpi=100)
+    print('生成 按选取率.png')
 
 
 if __name__ == '__main__':
-    # GameInfo.init()
+    # pandas.set_option('display.max_colwidth', None)
+    GameInfo.init()
     # Export.process()
     # Export.export()
     # pull_data()
-
-
+    show_windows()
