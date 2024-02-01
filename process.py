@@ -6,6 +6,8 @@ import pandas
 from pandas import DataFrame
 import json
 import openpyxl
+import urllib.request
+import PySimpleGUI as sg
 
 
 class CardData:
@@ -228,20 +230,26 @@ class VictoryData:
         self.lose = 0
 
     @staticmethod
-    def process(content):
+    def process(file_name, content):
         floor_reached = content['event']['floor_reached']
         ascension_level = int(content['event']['ascension_level'])
         victory = content['event']['victory']
         VictoryData.add_victory_data(ascension_level, floor_reached, victory)
         VictoryData.add_victory_data(-1, floor_reached, victory)
+        if floor_reached >= 58:
+            print(file_name)
 
     @staticmethod
     def add_victory_data(ascension_level, floor_reached, victory):
         if victory:
             for i in range(1, floor_reached + 1):
+                if i not in VictoryData.victory_data_map[ascension_level]:
+                    continue
                 VictoryData.victory_data_map[ascension_level][i].victory += 1
         else:
             for i in range(1, floor_reached + 1):
+                if i not in VictoryData.victory_data_map[ascension_level]:
+                    continue
                 VictoryData.victory_data_map[ascension_level][i].lose += 1
 
     @staticmethod
@@ -500,7 +508,7 @@ class Export:
                     # print(file_name)
                     continue
                 CombatData.process(content)
-                VictoryData.process(content)
+                VictoryData.process(file_name, content)
                 RunData.process(file_name, content)
                 LangData.process(content)
                 if floor_reached < 3:
@@ -528,7 +536,25 @@ class Export:
                 print(f'export {sheet_name} success')
 
 
+def pull_data():
+    files = os.listdir('data')
+    files = sorted(filter(lambda name: name.endswith('.json'), files))
+    start = files[-1] if files else ''
+
+    print(f'request: {start}')
+    response = urllib.request.urlopen(f"http://59.110.33.80:12007/pull?start={start}").read()
+    os.makedirs('data', exist_ok=True)
+    json_data = json.loads(response)
+    for content in json_data:
+        with open(os.path.join('data', content['name']), mode='w') as f:
+            f.write(content['content'])
+    print(f'pull finish {len(json_data)}')
+
+
 if __name__ == '__main__':
-    GameInfo.init()
-    Export.process()
-    Export.export()
+    # GameInfo.init()
+    # Export.process()
+    # Export.export()
+    # pull_data()
+
+

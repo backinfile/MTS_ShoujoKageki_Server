@@ -7,7 +7,6 @@ import json
 import os
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from urllib import parse
 
 host = ('', 12007)
 
@@ -34,10 +33,7 @@ class MyHandler(BaseHTTPRequestHandler):
         pass
 
     def do_GET(self):
-        self.send_response(200)
-        self.send_header('Content-type', 'application/json')
-        self.end_headers()
-        self.wfile.write(json.dumps(response_view(self.path)).encode())
+        self.reponse_json(self.response_view(self.path))
 
     def reponse_json(self, content):
         self.send_response(200)
@@ -45,12 +41,25 @@ class MyHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(json.dumps(content).encode())
 
-
-def response_view(path):
-    print('request path = ' + path)
-    if path == '/dataSize':
-        return 'dataSize = ' + str(len(os.listdir('data')))
-    return "response"
+    def response_view(self, path):
+        print('request path = ' + path)
+        if path == '/dataSize':
+            return 'dataSize = ' + str(len(os.listdir('data')))
+        elif path.startswith('/pull'):
+            u = urllib.parse.urlparse(path)
+            q = urllib.parse.parse_qs(u.query)
+            print(type(q))
+            start = q['start'][0] if 'start' in q else ''
+            result = []
+            files = os.listdir('data')
+            for file_name in files:
+                if not file_name.endswith('.json') or (start and file_name <= start):
+                    continue
+                with open(os.path.join('data', file_name), 'r') as f:
+                    content = f.read()
+                    result.append({'name': file_name, 'content': content})
+            return result
+        return "response"
 
 
 # Press the green button in the gutter to run the script.
