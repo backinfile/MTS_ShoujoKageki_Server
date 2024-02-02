@@ -304,6 +304,7 @@ class RunData:
         self.fileName = ''
         self.relics = []
         self.mod_list = []
+        self.last_damage = 0
 
     @staticmethod
     def process(file_name, content):
@@ -314,6 +315,7 @@ class RunData:
         sj_disposedCards = content['event']['sj_disposedCards']
         mods = content['event']['mods']
         relics = content['event']['relics']
+        damage_taken = content['event']['damage_taken']
         if victory:
             run_data = RunData()
             RunData.run_data_list.append(run_data)
@@ -323,6 +325,7 @@ class RunData:
             run_data.file_name = file_name
             run_data.mod_list.extend(mods)
             run_data.relics.extend(relics)
+            run_data.last_damage = damage_taken[-1]['damage']
             # if str(floor_reached) in sj_disposedCards:
             #     run_data.sj_disposedCards.extend(sj_disposedCards[str(floor_reached)])
             if str(floor_reached-1) in sj_disposedCards:
@@ -332,6 +335,7 @@ class RunData:
     def export_run_data():
         export_data = {'进阶': [run.ascension_level for run in RunData.run_data_list],
                        '最后楼层': [run.floor_reached for run in RunData.run_data_list],
+                       '最后一战受伤': [run.last_damage for run in RunData.run_data_list],
                        'mod数': [len(run.mod_list) for run in RunData.run_data_list],
                        'mod': [' '.join(run.mod_list) for run in RunData.run_data_list],
                        '遗物数': [len(run.relics) for run in RunData.run_data_list],
