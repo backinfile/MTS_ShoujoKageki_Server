@@ -9,7 +9,6 @@ from pandas import DataFrame
 import json
 import openpyxl
 import urllib.request
-import PySimpleGUI as sg
 import matplotlib.pyplot as plt
 
 
@@ -589,60 +588,6 @@ def pull_data():
     return len(json_data)
 
 
-def show_windows():
-    layout = [
-        [
-            sg.Button('更新数据(不要常点)', key='-UPDATE-', focus=False),
-            sg.Button('生成Excel', key='-EXCEL-'),
-            sg.Button('生成图表', key='-CHART-')
-        ],
-        [
-            sg.Multiline(size=(60, 10), key='-LOG-', disabled=True)
-        ],
-    ]
-    window = sg.Window("Data Processor", layout)
-
-    def log(text):
-        text = text.replace('\n', '')
-        if text:
-            window['-LOG-'].print(text)
-
-    class IO(StringIO):
-        write = log
-    sys.stdout = IO
-
-    # Run the Event Loop
-    while True:
-        event, values = window.read()
-        if event == "Exit" or event == sg.WIN_CLOSED:
-            break
-        elif event == "-UPDATE-":
-            log(f'start update')
-            try:
-                pull_data()
-            except Exception as e:
-                log(f'error {e}')
-        elif event == '-EXCEL-':
-            log(f'start export excel')
-            try:
-                Export.process()
-                Export.export()
-            except Exception as e:
-                log(f'error {e}')
-        elif event == '-CHART-':
-            log(f'start export chart')
-            try:
-                Export.process()
-                Export.export()
-                export_chart_1()
-                export_chart_2()
-                log(f'success export chart')
-            except Exception as e:
-                log(f'error {e}')
-
-    window.close()
-
-
 def export_chart_1():
     data = Export.export_data['卡牌数据']
     data_size = len(data['卡牌名称'])
@@ -684,9 +629,23 @@ def export_chart_2():
 
 
 if __name__ == '__main__':
-    # pandas.set_option('display.max_colwidth', None)
     GameInfo.init()
+    arg = sys.argv[-1].lower()
+    if arg == 'update':
+        pull_data()
+    elif arg == 'excel':
+        Export.process()
+        Export.export()
+    elif arg == 'chart':
+        Export.process()
+        Export.export()
+        export_chart_1()
+        export_chart_2()
+    else:
+        print('arg = update | excel | chart')
+
+    # pandas.set_option('display.max_colwidth', None)
     # Export.process()
     # Export.export()
     # pull_data()
-    show_windows()
+
