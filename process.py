@@ -601,12 +601,13 @@ def export_chart_1():
         '稀有度': [order_dict[r] for r in data['稀有度']]})
     df = df.sort_values(by=['稀有度', '去重胜率'])
     df = df.drop(['稀有度'], axis=1)
-    plt.rcParams['font.sans-serif'] = ['SimHei']
+    plt.rcParams['font.sans-serif'] = ['SimHei'] if 'windows' in platform.system().lower() else ['Heiti TC']
     plt.rcParams['axes.unicode_minus'] = False
     fig = df.plot(kind='barh', figsize=(5, 14), x='卡牌名称', width=0.9, title='按去重胜率')
     # fig.margins(x=0)
     plt.subplots_adjust(left=0.3, bottom=0.05, top=0.95)
-    plt.savefig('按去重胜率.png', dpi=100)
+    cur_date = datetime.datetime.now().strftime("%Y_%m_%d")
+    plt.savefig(f'按去重胜率_{cur_date}.png', dpi=100)
     print('生成 按去重胜率.png')
 
 
@@ -621,12 +622,13 @@ def export_chart_2():
         '稀有度': [order_dict[r] for r in data['稀有度']]})
     df = df.sort_values(by=['稀有度', '选取率'])
     df = df.drop(['稀有度'], axis=1)
-    plt.rcParams['font.sans-serif'] = ['SimHei'] if 'win' in platform.system().lower() else ['Arial Unicode MS']
+    plt.rcParams['font.sans-serif'] = ['SimHei'] if 'windows' in platform.system().lower() else ['Heiti TC']
     plt.rcParams['axes.unicode_minus'] = False
     fig = df.plot(kind='barh', figsize=(5, 14), x='卡牌名称', width=0.9, title='按选取率')
     # fig.margins(x=0)
     plt.subplots_adjust(left=0.3, bottom=0.05, top=0.95)
-    plt.savefig('按选取率.png', dpi=100)
+    cur_date = datetime.datetime.now().strftime("%Y_%m_%d")
+    plt.savefig(f'按选取率_{cur_date}.png', dpi=100)
     print('生成 按选取率.png')
 
 
@@ -643,6 +645,13 @@ if __name__ == '__main__':
         Export.export()
         export_chart_1()
         export_chart_2()
+    elif arg == 'font':
+        from matplotlib import font_manager
+        ttf_lists = font_manager.fontManager.ttflist
+        for font in ttf_lists:
+            print(font)
+    elif arg == 'platform':
+        print(platform.system())
     else:
         print('arg = update | excel | chart')
 
