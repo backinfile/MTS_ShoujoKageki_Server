@@ -552,6 +552,8 @@ class Export:
                 if 'Loadout Mod' in mods:
                     # print(file_name)
                     continue
+                if content['event']['is_trial'] or content['event']['is_endless'] or content['event']['is_daily']:
+                    continue
                 CombatData.process(content)
                 VictoryData.process(file_name, content)
                 RunData.process(file_name, content)
