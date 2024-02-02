@@ -372,6 +372,8 @@ class DeathData:
         cnt = []
         showCnt = []
         for name, data in sorted(DeathData.death_data_map.items(), key=lambda d: d[1].deathCnt, reverse=True):
+            if name not in GameInfo.monster_group_set:
+                continue
             names.append(GameInfo.get_zh_name_of_monster_or_default(name))
             en_names.append(name)
             cnt.append(data.deathCnt)
@@ -430,6 +432,7 @@ class GameInfo:
     relic_name_map = {}
     relic_name_share_map = {}
     monster_name_map = {}
+    monster_group_set = set()
 
     @staticmethod
     def init():
@@ -458,6 +461,10 @@ class GameInfo:
             content = json.load(f)
             for monster, strings in content.items():
                 GameInfo.monster_name_map[monster] = strings['NAME']
+        with open(os.path.join('gameFiles', 'monsterGroups.json'), encoding='utf-8') as f:
+            content = json.load(f)
+            for monsterGroup in content:
+                GameInfo.monster_group_set.add(monsterGroup)
 
     @staticmethod
     def get_zh_name_of_card_or_default(card):
