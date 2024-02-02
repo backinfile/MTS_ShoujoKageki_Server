@@ -1,5 +1,6 @@
 import datetime
 import os.path
+import platform
 import sys
 from collections import defaultdict
 from io import StringIO
@@ -432,6 +433,7 @@ class GameInfo:
 
     @staticmethod
     def init():
+        os.makedirs('data', exist_ok=True)
         with open(os.path.join('gameFiles', 'ShoujoKageki-Card-Strings.json'), encoding='utf-8') as f:
             content = json.load(f)
             for card, strings in content.items():
@@ -611,7 +613,7 @@ def export_chart_1():
 def export_chart_2():
     data = Export.export_data['卡牌数据']
     data_size = len(data['卡牌名称'])
-    order_dict = {'BASIC': 0, 'COMMON': 1, 'UNCOMMON': 2, 'RARE':3}
+    order_dict = {'BASIC': 0, 'COMMON': 1, 'UNCOMMON': 2, 'RARE': 3}
     df = DataFrame({
         '卡牌名称': data['卡牌名称'],
         '选取率': data['选取率'],
@@ -619,7 +621,7 @@ def export_chart_2():
         '稀有度': [order_dict[r] for r in data['稀有度']]})
     df = df.sort_values(by=['稀有度', '选取率'])
     df = df.drop(['稀有度'], axis=1)
-    plt.rcParams['font.sans-serif'] = ['SimHei']
+    plt.rcParams['font.sans-serif'] = ['SimHei'] if 'win' in platform.system().lower() else ['Arial Unicode MS']
     plt.rcParams['axes.unicode_minus'] = False
     fig = df.plot(kind='barh', figsize=(5, 14), x='卡牌名称', width=0.9, title='按选取率')
     # fig.margins(x=0)
