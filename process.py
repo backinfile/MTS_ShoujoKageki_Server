@@ -590,6 +590,13 @@ def pull_data():
     return len(json_data)
 
 
+def export_chart_config():
+    plt.rcParams['font.sans-serif'] = ['SimHei'] if 'windows' in platform.system().lower() else ['Heiti TC']
+    plt.rcParams['axes.unicode_minus'] = False
+    plt.rcParams['xtick.bottom'] = plt.rcParams['xtick.labelbottom'] = False
+    plt.rcParams['xtick.top'] = plt.rcParams['xtick.labeltop'] = True
+
+
 def export_chart_1():
     data = Export.export_data['卡牌数据']
     data_size = len(data['卡牌名称'])
@@ -601,13 +608,12 @@ def export_chart_1():
         '稀有度': [order_dict[r] for r in data['稀有度']]})
     df = df.sort_values(by=['稀有度', '去重胜率'])
     df = df.drop(['稀有度'], axis=1)
-    plt.rcParams['font.sans-serif'] = ['SimHei'] if 'windows' in platform.system().lower() else ['Heiti TC']
-    plt.rcParams['axes.unicode_minus'] = False
-    fig = df.plot(kind='barh', figsize=(5, 14), x='卡牌名称', width=0.9, title='按去重胜率')
-    # fig.margins(x=0)
+    df.plot(kind='barh', figsize=(5, 14), x='卡牌名称', width=0.9, title='按去重胜率')
+    plt.grid(axis='x')
+    # plt.legend(loc='upper left')
     plt.subplots_adjust(left=0.3, bottom=0.05, top=0.95)
     cur_date = datetime.datetime.now().strftime("%Y_%m_%d")
-    plt.savefig(f'按去重胜率_{cur_date}.png', dpi=100)
+    plt.savefig(os.path.join('export', f'按去重胜率_{cur_date}.png'), dpi=100)
     print('生成 按去重胜率.png')
 
 
@@ -622,14 +628,32 @@ def export_chart_2():
         '稀有度': [order_dict[r] for r in data['稀有度']]})
     df = df.sort_values(by=['稀有度', '选取率'])
     df = df.drop(['稀有度'], axis=1)
-    plt.rcParams['font.sans-serif'] = ['SimHei'] if 'windows' in platform.system().lower() else ['Heiti TC']
-    plt.rcParams['axes.unicode_minus'] = False
     fig = df.plot(kind='barh', figsize=(5, 14), x='卡牌名称', width=0.9, title='按选取率')
+    plt.grid(axis='x')
+    # plt.legend(loc='upper left')
     # fig.margins(x=0)
     plt.subplots_adjust(left=0.3, bottom=0.05, top=0.95)
     cur_date = datetime.datetime.now().strftime("%Y_%m_%d")
-    plt.savefig(f'按选取率_{cur_date}.png', dpi=100)
+    plt.savefig(os.path.join('export', f'按选取率_{cur_date}.png'), dpi=100)
     print('生成 按选取率.png')
+
+
+def export_chart_3():
+    data = Export.export_data['卡牌数据']
+    data_size = len(data['卡牌名称'])
+    order_dict = {'BASIC': 0, 'COMMON': 1, 'UNCOMMON': 2, 'RARE': 3}
+    df = DataFrame({
+        '卡牌名称': data['卡牌名称'],
+        '升级/抓取': data['升级/抓取']})
+    df = df.sort_values(by=['升级/抓取'])
+    fig = df.plot(kind='barh', figsize=(5, 14), x='卡牌名称', width=0.9, title='升级数/抓取数')
+    plt.grid(axis='x')
+    # plt.legend(loc='upper left')
+    # fig.margins(x=0)
+    plt.subplots_adjust(left=0.3, bottom=0.05, top=0.95)
+    cur_date = datetime.datetime.now().strftime("%Y_%m_%d")
+    plt.savefig(os.path.join('export', f'按升级率_{cur_date}.png'), dpi=100)
+    print('生成 按升级率.png')
 
 
 if __name__ == '__main__':
@@ -643,8 +667,10 @@ if __name__ == '__main__':
     elif arg == 'chart':
         Export.process()
         Export.export()
+        export_chart_config()
         export_chart_1()
         export_chart_2()
+        export_chart_3()
     elif arg == 'font':
         from matplotlib import font_manager
         ttf_lists = font_manager.fontManager.ttflist
