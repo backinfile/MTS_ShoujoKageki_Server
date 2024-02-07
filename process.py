@@ -498,7 +498,7 @@ class GameInfo:
     @staticmethod
     def parse_deck(deck):
         result = []
-        for card in sorted(deck):
+        for card in deck:
             upgrade = get_card_upgrade_time(card)
             name = GameInfo.get_zh_name_of_card_or_default( get_raw_card_name( card ) )
             if upgrade <= 0:
@@ -512,7 +512,7 @@ class GameInfo:
     @staticmethod
     def parse_relics(relics):
         result = []
-        for relic in sorted(relics):
+        for relic in relics:
             name = GameInfo.get_zh_name_of_relic_or_default( relic )
             result.append(name)
         return ' '.join(result)
@@ -613,7 +613,7 @@ def export_chart_config():
 def export_chart_1():
     data = Export.export_data['卡牌数据']
     data_size = len(data['卡牌名称'])
-    order_dict = {'BASIC': 0, 'COMMON': 1, 'UNCOMMON': 2, 'RARE':3}
+    order_dict = {'': 0, 'BASIC': 1, 'COMMON': 2, 'UNCOMMON': 3, 'RARE': 4}
     df = DataFrame({
         '卡牌名称': data['卡牌名称'],
         '选取率': data['选取率'],
@@ -633,7 +633,7 @@ def export_chart_1():
 def export_chart_2():
     data = Export.export_data['卡牌数据']
     data_size = len(data['卡牌名称'])
-    order_dict = {'BASIC': 0, 'COMMON': 1, 'UNCOMMON': 2, 'RARE': 3}
+    order_dict = {'': 0, 'BASIC': 1, 'COMMON': 2, 'UNCOMMON': 3, 'RARE': 4}
     df = DataFrame({
         '卡牌名称': data['卡牌名称'],
         '选取率': data['选取率'],
@@ -654,7 +654,7 @@ def export_chart_2():
 def export_chart_3():
     data = Export.export_data['卡牌数据']
     data_size = len(data['卡牌名称'])
-    order_dict = {'BASIC': 0, 'COMMON': 1, 'UNCOMMON': 2, 'RARE': 3}
+    order_dict = {'': 0, 'BASIC': 1, 'COMMON': 2, 'UNCOMMON': 3, 'RARE': 4}
     df = DataFrame({
         '卡牌名称': data['卡牌名称'],
         '升级/抓取': data['升级/抓取']})
