@@ -1,7 +1,9 @@
 data/
+data*/
 venv/
 .idea/
 export/
+export*/
 dist/
 build/
 *.xlsx

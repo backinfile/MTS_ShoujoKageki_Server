@@ -28,7 +28,7 @@ class CardData:
         self.pickCnt = 0
         self.winCnt = 0
         self.pickFloorSum = 0
-        self.singlePickCnt = 0
+        self.singlePickCnt = 0  # 去重，每个Run只计算1次
         self.singleWinCnt = 0
         self.firstPickFloor = 0
         self.firstSmithFloor = 0
@@ -37,6 +37,8 @@ class CardData:
         self.showWinCnt = 0
         self.pass3Cnt = 0
         self.killHeartCnt = 0
+        self.viewFiltered = 0  # 去掉单选
+        self.pickFiltered = 0  # 去掉单选
 
     @staticmethod
     def process(file_name, content):
@@ -54,12 +56,15 @@ class CardData:
         for choice in card_choices:
             if int(choice['floor']) <= 0:
                 continue
+            is_only_one_card = len(choice['not_picked']) == 0
             for card, is_pick in [(card, False) for card in choice['not_picked']] + [(choice['picked'], True)]:
                 if not card:
                     continue
                 card = get_raw_card_name(card)
                 card_data = CardData.card_data_map[card][ascension_level]
                 card_data.viewCnt += 1
+                if not is_only_one_card:
+                    card_data.viewFiltered += 1
                 if victory:
                     card_data.showWinCnt += 1
                     show_card_cache_set[card] = True
@@ -68,6 +73,8 @@ class CardData:
                 if is_pick:
                     card_data.pickCnt += 1
                     card_data.pickFloorSum += int(choice['floor'])
+                    if not is_only_one_card:
+                        card_data.pickFiltered += 1
                     if card not in single_card_cache_set:
                         single_card_cache_set.add(card)
                         card_data.singlePickCnt += 1
@@ -104,6 +111,9 @@ class CardData:
         pass3Cnt = []
         killHeartCnt = []
         showWinCnt = []
+        viewFiltered = []
+        pickFiltered = []
+
         for (card, card_data) in CardData.card_data_map.items():
             if card not in GameInfo.card_name_map:
                 if 'ShoujoKageki' in card:
@@ -113,7 +123,7 @@ class CardData:
             pickCntNum = sum((d.pickCnt for d in card_data.values()))
             winCntNum = sum((d.winCnt for d in card_data.values()))
 
-            card_names.append( GameInfo.card_name_map[card] )
+            card_names.append(GameInfo.card_name_map[card])
             viewCnt.append(viewCntNum)
             pickCnt.append(pickCntNum)
             winCnt.append(winCntNum)
@@ -122,11 +132,13 @@ class CardData:
             pickFloorSum.append(sum((d.pickFloorSum for d in card_data.values())))
             upgradeCnt.append(sum((d.upgradeCnt for d in card_data.values())))
             upgradeFloorSum.append(sum((d.upgradeFloorSum for d in card_data.values())))
-            pickCntWithInit.append( pickCntNum + GameInfo.card_init_cnt_map[card] * CardData.run_data_cnt )
-            rarity.append( GameInfo.card_rarity_map[card] if card in GameInfo.card_rarity_map else '' )
+            pickCntWithInit.append(pickCntNum + GameInfo.card_init_cnt_map[card] * CardData.run_data_cnt)
+            rarity.append(GameInfo.card_rarity_map[card] if card in GameInfo.card_rarity_map else '')
             pass3Cnt.append(sum((d.pass3Cnt for d in card_data.values())))
             killHeartCnt.append(sum((d.killHeartCnt for d in card_data.values())))
             showWinCnt.append(sum((d.showWinCnt for d in card_data.values())))
+            viewFiltered.append(sum((d.viewFiltered for d in card_data.values())))
+            pickFiltered.append(sum((d.pickFiltered for d in card_data.values())))
             # print(card_total)
 
         upgradeCntSum = sum(upgradeCnt)
@@ -144,6 +156,9 @@ class CardData:
                        '去重碎心次数': killHeartCnt,
                        '去重碎心比率': [p/pick if pick > 0 else 0 for pick, p in zip(singlePickCnt, killHeartCnt)],
                        '出现胜率': [win/view if view > 0 else 0 for view, win in zip(viewCnt, showWinCnt)],
+                       '出现次数次数（去掉单选）': viewFiltered,
+                       '选取次数（去掉单选）': pickFiltered,
+                       '选取率（去掉单选）': [pick/view if view > 0 else 0 for view, pick in zip(viewFiltered, pickFiltered)],
                        }
         Export.export_data["卡牌数据"] = export_data
 
@@ -339,10 +354,10 @@ class RunData:
                        'mod数': [len(run.mod_list) for run in RunData.run_data_list],
                        'mod': [' '.join(run.mod_list) for run in RunData.run_data_list],
                        '遗物数': [len(run.relics) for run in RunData.run_data_list],
-                       '遗物': [GameInfo.parse_relics( run.relics ) for run in RunData.run_data_list],
+                       '遗物': [GameInfo.parse_relics(run.relics) for run in RunData.run_data_list],
                        '卡组张数': [len(run.master_deck) for run in RunData.run_data_list],
-                       '卡组': [GameInfo.parse_deck( run.master_deck ) for run in RunData.run_data_list],
-                       '最后房间耗尽的闪耀': [GameInfo.parse_deck( run.sj_disposedCards ) for run in RunData.run_data_list],
+                       '卡组': [GameInfo.parse_deck(run.master_deck) for run in RunData.run_data_list],
+                       '最后房间耗尽的闪耀': [GameInfo.parse_deck(run.sj_disposedCards) for run in RunData.run_data_list],
                        '文件名': [run.file_name for run in RunData.run_data_list]
                        }
         Export.export_data["获胜卡组"] = export_data
@@ -437,6 +452,7 @@ class GameInfo:
     relic_name_share_map = {}
     monster_name_map = {}
     monster_group_set = set()
+    rairty_order_dict = {'': 0, 'BASIC': 1, 'COMMON': 2, 'UNCOMMON': 3, 'RARE': 4}
 
     @staticmethod
     def init():
@@ -560,7 +576,7 @@ class Export:
                     continue
                 CombatData.process(content)
                 VictoryData.process(file_name, content)
-                RunData.process(file_name, content)
+                # RunData.process(file_name, content)
                 LangData.process(content)
                 if floor_reached < 3:
                     continue
@@ -573,14 +589,13 @@ class Export:
         CardData.export_card_data_total()
         CombatData.export_combat_data_total()
         VictoryData.export_victory_data()
-        RunData.export_run_data()
+        # RunData.export_run_data()
         DeathData.export_death_data()
         LangData.export_lang_data()
 
         cur_date = datetime.datetime.now().strftime("%Y_%m_%d")
 
-        os.makedirs('export', exist_ok=True)
-        with pandas.ExcelWriter(os.path.join('export', 'export_'+cur_date+'.xlsx')) as writer:
+        with pandas.ExcelWriter(build_export_path('Summarize', '.xlsx')) as writer:
             for sheet_name, data in Export.export_data.items():
                 df = DataFrame(data)
                 df.to_excel(writer, sheet_name=sheet_name, index=False)
@@ -613,48 +628,43 @@ def export_chart_config():
 def export_chart_1():
     data = Export.export_data['卡牌数据']
     data_size = len(data['卡牌名称'])
-    order_dict = {'': 0, 'BASIC': 1, 'COMMON': 2, 'UNCOMMON': 3, 'RARE': 4}
     df = DataFrame({
         '卡牌名称': data['卡牌名称'],
-        '选取率': data['选取率'],
+        '选取率（去掉单选）': data['选取率（去掉单选）'],
         '去重胜率': data['去重胜率'],
-        '稀有度': [order_dict[r] for r in data['稀有度']]})
+        '稀有度': [GameInfo.rairty_order_dict[r] for r in data['稀有度']]})
     df = df.sort_values(by=['稀有度', '去重胜率'])
     df = df.drop(['稀有度'], axis=1)
     df.plot(kind='barh', figsize=(5, 14), x='卡牌名称', width=0.9, title='按去重胜率')
     plt.grid(axis='x')
     # plt.legend(loc='upper left')
     plt.subplots_adjust(left=0.3, bottom=0.05, top=0.95)
-    cur_date = datetime.datetime.now().strftime("%Y_%m_%d")
-    plt.savefig(os.path.join('export', f'按去重胜率_{cur_date}.png'), dpi=100)
+    plt.savefig(build_export_path('按去重胜率', '.png'), dpi=100)
     print('生成 按去重胜率.png')
 
 
 def export_chart_2():
     data = Export.export_data['卡牌数据']
     data_size = len(data['卡牌名称'])
-    order_dict = {'': 0, 'BASIC': 1, 'COMMON': 2, 'UNCOMMON': 3, 'RARE': 4}
     df = DataFrame({
         '卡牌名称': data['卡牌名称'],
-        '选取率': data['选取率'],
+        '选取率（去掉单选）': data['选取率（去掉单选）'],
         '去重胜率': data['去重胜率'],
-        '稀有度': [order_dict[r] for r in data['稀有度']]})
-    df = df.sort_values(by=['稀有度', '选取率'])
+        '稀有度': [GameInfo.rairty_order_dict[r] for r in data['稀有度']]})
+    df = df.sort_values(by=['稀有度', '选取率（去掉单选）'])
     df = df.drop(['稀有度'], axis=1)
-    fig = df.plot(kind='barh', figsize=(5, 14), x='卡牌名称', width=0.9, title='按选取率')
+    fig = df.plot(kind='barh', figsize=(5, 14), x='卡牌名称', width=0.9, title='按选取率（去掉单选）')
     plt.grid(axis='x')
     # plt.legend(loc='upper left')
     # fig.margins(x=0)
     plt.subplots_adjust(left=0.3, bottom=0.05, top=0.95)
-    cur_date = datetime.datetime.now().strftime("%Y_%m_%d")
-    plt.savefig(os.path.join('export', f'按选取率_{cur_date}.png'), dpi=100)
+    plt.savefig(build_export_path('按选取率', '.png'), dpi=100)
     print('生成 按选取率.png')
 
 
 def export_chart_3():
     data = Export.export_data['卡牌数据']
     data_size = len(data['卡牌名称'])
-    order_dict = {'': 0, 'BASIC': 1, 'COMMON': 2, 'UNCOMMON': 3, 'RARE': 4}
     df = DataFrame({
         '卡牌名称': data['卡牌名称'],
         '升级/抓取': data['升级/抓取']})
@@ -664,9 +674,15 @@ def export_chart_3():
     # plt.legend(loc='upper left')
     # fig.margins(x=0)
     plt.subplots_adjust(left=0.3, bottom=0.05, top=0.95)
-    cur_date = datetime.datetime.now().strftime("%Y_%m_%d")
-    plt.savefig(os.path.join('export', f'按升级率_{cur_date}.png'), dpi=100)
+    plt.savefig(build_export_path('按升级率', '.png'), dpi=100)
     print('生成 按升级率.png')
+
+
+def build_export_path(file_name, file_ext):
+    cur_date = datetime.datetime.now().strftime("%Y_%m_%d")
+    export_dir = f"export_{cur_date}"
+    os.makedirs(export_dir, exist_ok=True)
+    return os.path.join(export_dir, f"{file_name}_{cur_date}{file_ext}")
 
 
 if __name__ == '__main__':
