@@ -569,7 +569,7 @@ class Export:
                 mods = content['event']['mods']
                 victory = content['event']['victory']
                 ascension_level = int(content['event']['ascension_level'])
-                if 'Loadout Mod' in mods:
+                if hasModConflict(mods):
                     # print(file_name)
                     continue
                 if content['event']['is_trial'] or content['event']['is_endless'] or content['event']['is_daily']:
@@ -683,6 +683,14 @@ def build_export_path(file_name, file_ext):
     export_dir = f"export_{cur_date}"
     os.makedirs(export_dir, exist_ok=True)
     return os.path.join(export_dir, f"{file_name}_{cur_date}{file_ext}")
+
+
+def hasModConflict(mods):
+    conflict_mods = ['PvPInTheSpire', 'Loadout Mod', 'loadout']
+    for mod in mods:
+        if mod in conflict_mods:
+            return True
+    return False
 
 
 if __name__ == '__main__':
