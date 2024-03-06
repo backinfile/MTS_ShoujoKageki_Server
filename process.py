@@ -610,12 +610,14 @@ def pull_data():
     print(f'request: {start}')
     response = urllib.request.urlopen(f"http://59.110.33.80:12007/pull?start={start}").read()
     os.makedirs('data', exist_ok=True)
+    print(f'got response')
     json_data = json.loads(response)
     for content in json_data:
         with open(os.path.join('data', content['name']), mode='w') as f:
             f.write(content['content'])
     print(f'pull finish {len(json_data)}')
-    return len(json_data)
+    if len(json_data) >= 99:
+        pull_data()
 
 
 def export_chart_config():
@@ -694,14 +696,15 @@ def hasModConflict(mods):
 
 
 if __name__ == '__main__':
-    GameInfo.init()
     arg = sys.argv[-1].lower()
     if arg == 'update':
         pull_data()
     elif arg == 'excel':
+        GameInfo.init()
         Export.process()
         Export.export()
     elif arg == 'chart':
+        GameInfo.init()
         Export.process()
         Export.export()
         export_chart_config()
