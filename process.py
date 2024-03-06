@@ -576,7 +576,7 @@ class Export:
                     continue
                 CombatData.process(content)
                 VictoryData.process(file_name, content)
-                # RunData.process(file_name, content)
+                RunData.process(file_name, content)
                 LangData.process(content)
                 if floor_reached < 3:
                     continue
