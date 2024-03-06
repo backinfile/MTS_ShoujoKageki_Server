@@ -541,6 +541,8 @@ def get_raw_card_name(name):
 
 
 def get_card_upgrade_time(name):
+    if name.endswith('+'):
+        return 1
     if '+' in name:
         return int(name[name.index('+'):])
     return 0
