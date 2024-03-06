@@ -589,7 +589,7 @@ class Export:
         CardData.export_card_data_total()
         CombatData.export_combat_data_total()
         VictoryData.export_victory_data()
-        # RunData.export_run_data()
+        RunData.export_run_data()
         DeathData.export_death_data()
         LangData.export_lang_data()
 
